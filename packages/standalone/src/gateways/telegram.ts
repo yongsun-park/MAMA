@@ -158,8 +158,19 @@ export class TelegramGateway extends BaseGateway {
       },
     };
 
+    // Show typing indicator while processing
+    const chatId = String(msg.chat.id);
+    const sendTyping = () => this.bot?.sendChatAction(chatId, 'typing').catch(() => {});
+    sendTyping();
+    const typingInterval = setInterval(sendTyping, 4000); // Telegram typing expires after ~5s
+
     // Process through message router
-    const result = await this.messageRouter.process(normalizedMessage);
+    let result: { response: string; duration?: number };
+    try {
+      result = await this.messageRouter.process(normalizedMessage);
+    } finally {
+      clearInterval(typingInterval);
+    }
 
     // Log bot response
     memoryLogger.logMessage('Telegram', 'MAMA', result.response, true);
@@ -266,6 +277,7 @@ interface TelegramBot {
     document: string,
     options?: { caption?: string }
   ): Promise<unknown>;
+  sendChatAction(chatId: string | number, action: string): Promise<unknown>;
 }
 
 interface TelegramMessage {
