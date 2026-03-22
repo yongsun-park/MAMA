@@ -47,6 +47,7 @@ import {
   PluginLoader,
   initChannelHistory,
 } from '../../gateways/index.js';
+import { TelegramGateway } from '../../gateways/telegram.js';
 import type {
   Checkpoint,
   Decision,
@@ -1663,12 +1664,39 @@ export async function runAgentLoop(
     }
   }
 
+  // Initialize Telegram gateway if enabled
+  let telegramGateway: TelegramGateway | null = null;
+  if (config.telegram?.enabled && config.telegram?.token) {
+    console.log('Initializing Telegram gateway...');
+    try {
+      telegramGateway = new TelegramGateway({
+        token: config.telegram.token,
+        messageRouter,
+        config: {
+          allowedChats: config.telegram.allowed_chats,
+        },
+      });
+
+      await telegramGateway.start();
+      gateways.push(telegramGateway);
+      console.log('✓ Telegram connected');
+    } catch (error) {
+      console.error(
+        `Failed to connect Telegram: ${error instanceof Error ? error.message : String(error)}`
+      );
+      telegramGateway = null;
+    }
+  }
+
   // Wire gateways into health check service
   if (discordGateway) {
     healthCheckService.addGateway('discord', discordGateway);
   }
   if (slackGateway) {
     healthCheckService.addGateway('slack', slackGateway);
+  }
+  if (telegramGateway) {
+    healthCheckService.addGateway('telegram', telegramGateway);
   }
 
   const securityAlertTargets = parseSecurityAlertTargets(config).filter((target) => {
